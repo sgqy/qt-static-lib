@@ -1,0 +1,13 @@
+diff --git a/util/pl/VC-32.pl b/util/pl/VC-32.pl
+index dba96cb..3ea1e8a 100644
+--- a/util/pl/VC-32.pl
++++ b/util/pl/VC-32.pl
+@@ -134,7 +134,7 @@ else	# Win32
+     $ff = "/fixed";
+     $opt_cflags=$f.' /Ox /O2 /Ob2';
+     $dbg_cflags=$f.'d /Od -DDEBUG -D_DEBUG';
+-    $lflags="/nologo /subsystem:console /opt:ref";
++    $lflags="/nologo /subsystem:console,5.01 /opt:ref";
+     }
+ $lib_cflag='/Zl' if (!$shlib);	# remove /DEFAULTLIBs from static lib
+ $mlflags='';
