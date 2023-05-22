@@ -1,0 +1,8 @@
+132c132
+<     $base_cflags= " $mf_cflag";
+---
+>     $base_cflags= " /utf-8 -D_USING_V110_SDK71_ $mf_cflag";
+137c137
+<     $lflags="/nologo /subsystem:console /opt:ref";
+---
+>     $lflags="/nologo /subsystem:console,5.01 /opt:ref";
