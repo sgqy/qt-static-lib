@@ -8,14 +8,17 @@ Before using this docker image, you should switch `Docker Desktop` into windows 
 
 ### From github
 
-```bat
-docker pull ghcr.io/sgqy/qt-static-lib
+```cmd
+docker pull ghcr.io/sgqy/qt-static-lib:devenv
 ```
 
 ### Build by yourself
 
-```bat
-docker build -t qt-libs .
+```ps1
+# only libs
+docker build --target slim -t qt:slim .
+# with msvc
+docker build --target devenv -t qt:devenv .
 ```
 
 ## Use the libs
@@ -24,18 +27,15 @@ docker build -t qt-libs .
 
 ```docker
 # escape=`
-FROM ghcr.io/sgqy/qt-static-lib as libs
-FROM mcr.microsoft.com/windows/servercore:ltsc2022
-COPY --from=libs C:\openssl C:\
-COPY --from=libs C:\qt5 C:\
-# ...
+FROM ghcr.io/sgqy/qt-static-lib:devenv as toolchain
+# Make your app
 ```
 
 ### In your host
 
 Copy libs into `C:\temp`.
 
-```bat
+```cmd
 docker run -v C:\temp:C:\target ghcr.io/sgqy/qt-static-lib:slim
 ```
 

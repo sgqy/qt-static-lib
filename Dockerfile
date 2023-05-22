@@ -111,10 +111,21 @@ RUN `
 RUN jom || jom || jom || jom || jom
 RUN jom install -j1
 
+### * ###
+
 # * Save build artifacts.
 
 FROM mcr.microsoft.com/windows/nanoserver:ltsc2019 AS slim
-COPY --from=build ${Qt563_Root} ${OpenSSL_102_Root} C:\
+COPY --from=build C:\openssl-102 C:\openssl-102
+COPY --from=build C:\qt-563 C:\qt-563
+COPY autocopy.cmd .
+WORKDIR C:\target
+RUN > 50e2d7f4-48a4-4688-9ddd-c5fb840e87b2 echo .
+ENTRYPOINT cmd /S /C C:\autocopy.cmd
 
-FROM toolchain AS default
-COPY --from=build ${Qt563_Root} ${OpenSSL_102_Root} C:\
+# * Generate devcontainer.
+
+FROM toolchain AS devenv
+COPY --from=build ${OpenSSL_102_Root} ${OpenSSL_102_Root}
+COPY --from=build ${Qt563_Root} ${Qt563_Root}
+ENV PATH="${OpenSSL_102_Root}\bin;${Qt563_Root}\bin;${PATH}"
