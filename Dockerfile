@@ -3,129 +3,82 @@
 ### * Check README.md for more details.
 
 ### * ###
+# * Essential tools.
 
 FROM mcr.microsoft.com/windows/servercore:ltsc2019 as toolchain
-SHELL ["cmd", "/S", "/C"]
+SHELL ["cmd.exe", "/S", "/C"]
 
-# * Install MSVC toolchain.
+ENV X_TC=C:\_
+ENV X_VS=${X_TC}\vs
+ENV X_PY3=${X_TC}\py3
+ENV X_GIT=${X_TC}\git
+ENV X_PERL=${X_TC}\perl
+ENV X_DL=${X_TC}\_
 
-ENV MSVC_Root="C:\vs_tools"
+WORKDIR ${X_DL}
+
 RUN `
-  curl -SL -o vs.exe https://aka.ms/vs/17/release/vs_BuildTools.exe && `
+  curl -SL -o a2.zip https://github.com/aria2/aria2/releases/download/release-1.36.0/aria2-1.36.0-win-64bit-build1.zip && `
+  tar -xf a2.zip && copy aria2-1.36.0-win-64bit-build1\aria2c.exe . && `
+  aria2c.exe -c -s16 -x16 -o g4w.zip https://github.com/git-for-windows/git/releases/download/v2.40.1.windows.1/MinGit-2.40.1-64-bit.zip && `
+  md %X_GIT% && tar -xf g4w.zip -C %X_GIT% && `
+  aria2c.exe -c -s16 -x16 -o py3.zip https://www.python.org/ftp/python/3.9.13/python-3.9.13-embed-amd64.zip && `
+  md %X_PY3% && tar -xf py3.zip -C %X_PY3% && `
+  aria2c.exe -c -s16 -x16 -o perl.zip https://strawberryperl.com/download/5.32.1.1/strawberry-perl-5.32.1.1-64bit-portable.zip && `
+  md %X_PERL% && tar -xf perl.zip -C %X_PERL% && `
+  aria2c.exe -c -s16 -x16 -o vs.exe https://aka.ms/vs/17/release/vs_BuildTools.exe && `
   (start /w vs.exe --quiet --wait --norestart --nocache `
-    --installPath %MSVC_Root% `
+    --installPath %X_VS% `
     --add Microsoft.VisualStudio.Component.VC.v141.x86.x64 `
-    --add Microsoft.Component.VC.Runtime.UCRTSDK `
-    --add Microsoft.VisualStudio.Component.WinXP `
+    --add Microsoft.VisualStudio.Component.VC.CMake.Project `
+    --add Microsoft.VisualStudio.Component.Windows10SDK.19041 `
     || IF "%ERRORLEVEL%"=="3010" EXIT 0) && `
-  del /q vs.exe
+  cd C:\ && rd /s /q %X_DL%
 
-# * Qt MSVC toolchain environments.
+ENV PATH="${X_GIT}\cmd;${X_PY3};${X_PERL}\perl\bin;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0;C:\Windows\System32\OpenSSH"
 
-ENV OpenSSL_102_Root="C:\openssl-102"
-ENV Qt563_Root="C:\qt-563"
+ENV X_DEV_CMD="${X_VS}\VC\Auxiliary\Build\vcvarsall.bat amd64"
 
-ENV PATH="C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Bin;${MSVC_Root}\VC\Tools\MSVC\14.16.27023\bin\HostX86\x86;C:\Windows\system32;C:\Windows;C:\Windows\System32\OpenSSH"
-ENV INCLUDE="${OpenSSL_102_Root}\include;C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Include;${MSVC_Root}\VC\Tools\MSVC\14.16.27023\include;C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt"
-ENV LIB="${OpenSSL_102_Root}\lib;C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Lib;${MSVC_Root}\VC\Tools\MSVC\14.16.27023\lib\x86;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x86"
-ENV CL="/FS /utf-8 -D_USING_V110_SDK71_"
-ENV QMAKESPEC="win32-msvc2017"
+ENV X_QT_ROOT=C:\qt-651
+
+ENV X_WS=C:\ws
+WORKDIR ${X_WS}
+
+ENTRYPOINT %X_DEV_CMD% && cmd.exe
 
 ### * ###
+# * Download Qt.
 
 FROM toolchain AS build
 
-# * Install git, qt-jom, perl, python.
-
-ENV _DOWNLOAD="C:\download"
-WORKDIR ${_DOWNLOAD}
-RUN `
-  curl -SL -o g4w.zip https://github.com/git-for-windows/git/releases/download/v2.40.1.windows.1/MinGit-2.40.1-64-bit.zip && `
-  curl -SL -o jom.zip https://download.qt.io/official_releases/jom/jom_1_1_3.zip && `
-  curl -SL -o perl.zip https://strawberryperl.com/download/5.32.1.1/strawberry-perl-5.32.1.1-64bit-portable.zip && `
-  curl -SL -o py.zip https://www.python.org/ftp/python/3.9.13/python-3.9.13-embed-amd64.zip
-
-RUN `
-  md C:\git && cd /D C:\git && tar -xf %_DOWNLOAD%\g4w.zip && `
-  md C:\jom && cd /D C:\jom && tar -xf %_DOWNLOAD%\jom.zip && `
-  md C:\perl && cd /D C:\perl && tar -xf %_DOWNLOAD%\perl.zip && `
-  md C:\py39 && cd /D C:\py39 && tar -xf %_DOWNLOAD%\py.zip
-
-# * Set build environments.
-
-ENV DEV_PATH="C:\git\cmd;C:\py39;C:\jom;C:\perl\perl\bin"
-ENV PATH="${DEV_PATH};${PATH}"
-
-# * Start build.
-
-ENV _WORKSPACE="C:\workspace"
-WORKDIR ${_WORKSPACE}
 COPY *.patch .\
-
-# - OpenSSL 1.0.2u
-
-# mkdir manually before jom, which is a bug of jom
 RUN `
-  git clone --depth 1 --branch OpenSSL_1_0_2u https://github.com/openssl/openssl.git ossl && `
-  cd ossl && `
-  git apply ..\openssl.patch && `
-  perl Configure no-shared no-asm --prefix=%OpenSSL_102_Root% --openssldir=%OpenSSL_102_Root% VC-WIN32 && `
-  ms\do_ms.bat && `
-  md inc32\openssl && `
-  jom -f ms\nt.mak && `
-  nmake -f ms\nt.mak install
-
-# - Qt 5.6.3
-
-# do not build web browser
-RUN `
-  git clone --depth 1 --branch v5.6.3 https://github.com/qt/qt5.git qt5 && `
-  cd qt5 && `
-  copy .gitmodules ..\ && `
-  git rm qtandroidextras    && md qtandroidextras && `
-  git rm qtmacextras        && md qtmacextras && `
-  git rm qtwayland          && md qtwayland && `
-  git rm qtwebengine        && md qtwebengine && `
-  git rm qtwebkit           && md qtwebkit && `
-  git rm qtwebkit-examples  && md qtwebkit-examples && `
+  git clone --depth 1 --branch v6.5.1 https://github.com/qt/qt5.git qt && cd qt && `
+  git rm qtwayland && `
+  git rm qtwebengine && `
+  git rm qtwebview && `
   git submodule update --init --depth 1 && `
-  copy /Y ..\.gitmodules . && `
-  cd qtbase && `
-  git apply ..\..\qt.patch
+  cd qtdeclarative && git rm tests/auto/qml/ecmascripttests/test262 && cd .. && `
+  cd qtxmlpatterns && git rm tests/auto/3rdparty/testsuites && cd .. && `
+  git submodule update --init --recursive --depth 1 && `
+  cd qtbase && git apply %X_WS%\qt.patch
 
-WORKDIR ${_WORKSPACE}\qt5\build
-RUN `
-  ..\configure.bat -prefix %Qt563_Root% `
-    -debug-and-release -confirm-license -opensource -static -mp `
-    -target xp -no-directwrite -opengl desktop -no-angle `
-    -nomake examples -nomake tests -no-compile-examples `
-    -skip qtandroidextras `
-    -skip qtmacextras `
-    -skip qtwayland `
-    -skip qtwebkit `
-    -qt-zlib -qt-libpng -qt-libjpeg -qt-pcre -qt-freetype -qt-harfbuzz `
-    -no-sse3 -no-ssse3 -no-sse4.1 -no-sse4.2 -no-avx -no-avx2 `
-    -openssl-linked OPENSSL_LIBS="-lssleay32 -llibeay32 -lgdi32"
+# * Build configure.
 
-# retry max 5 times, for some strange file not found error.
-RUN jom || jom || jom || jom || jom
-RUN jom install -j1
+WORKDIR ${X_WS}\qt\_
+RUN %X_DEV_CMD% && `
+  ..\configure.bat -prefix %X_QT_ROOT% `
+    -static -static-runtime -debug-and-release -gc-binaries `
+    -nomake examples -no-feature-androiddeployqt
+
+# * Build Qt.
+
+RUN %X_DEV_CMD% && cmake --build . --parallel
+RUN %X_DEV_CMD% && ninja install
 
 ### * ###
-
-# * Save build artifacts.
-
-FROM mcr.microsoft.com/windows/nanoserver:ltsc2019 AS slim
-COPY --from=build C:\openssl-102 C:\openssl-102
-COPY --from=build C:\qt-563 C:\qt-563
-COPY autocopy.cmd .
-WORKDIR C:\target
-RUN > 50e2d7f4-48a4-4688-9ddd-c5fb840e87b2 echo .
-ENTRYPOINT cmd /S /C C:\autocopy.cmd
-
 # * Generate devcontainer.
 
 FROM toolchain AS devenv
-COPY --from=build ${OpenSSL_102_Root} ${OpenSSL_102_Root}
-COPY --from=build ${Qt563_Root} ${Qt563_Root}
-ENV PATH="${OpenSSL_102_Root}\bin;${Qt563_Root}\bin;${PATH}"
+COPY --from=build ${X_QT_ROOT} ${X_QT_ROOT}
+ENV PATH="${X_QT_ROOT}\bin;${PATH}"
